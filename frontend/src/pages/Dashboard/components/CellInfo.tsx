@@ -71,6 +71,9 @@ export function CellInfo({ cellsInfo }: CellInfoProps) {
           </Tooltip>
         </Box>
         <Box display="flex" alignItems="center" gap={0.5}>
+          {cellsInfo?.cells?.some((c) => c.is_secondary) && (
+            <Chip label="NSA 双连接" size="small" color="secondary" variant="outlined" />
+          )}
           {cellsInfo?.cells && <Chip label={`${cellsInfo.cells.length}`} size="small" color="primary" variant="outlined" />}
           <IconButton size="small">{expanded ? <ExpandLess /> : <ExpandMore />}</IconButton>
         </Box>
@@ -132,25 +135,42 @@ export function CellInfo({ cellsInfo }: CellInfoProps) {
                               const successMain = (theme.palette.success as { main: string }).main
                               return alpha(successMain, theme.palette.mode === 'dark' ? 0.15 : 0.08)
                             }
-                          : 'inherit',
+                          : cell.is_secondary
+                            ? (theme: Theme) => {
+                                const secondaryMain = (theme.palette.secondary as { main: string }).main
+                                return alpha(secondaryMain, theme.palette.mode === 'dark' ? 0.15 : 0.08)
+                              }
+                            : 'inherit',
                       }}
                     >
                       <TableCell sx={{ py: 0.5, px: 1 }}>
                         <Box display="flex" alignItems="center" gap={0.5}>
-                          {cell.is_serving && (
+                          {(cell.is_serving || cell.is_secondary) && (
                             <Box
                               sx={{
                                 width: 6,
                                 height: 6,
                                 borderRadius: '50%',
-                                bgcolor: 'success.main',
+                                bgcolor: cell.is_serving ? 'success.main' : 'secondary.main',
                                 flexShrink: 0,
                               }}
                             />
                           )}
-                          <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: cell.is_serving ? 600 : 400 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{ fontSize: '0.75rem', fontWeight: cell.is_serving || cell.is_secondary ? 600 : 400 }}
+                          >
                             {cell.band && cell.band !== '0' ? cell.band : '-'}
                           </Typography>
+                          {cell.is_secondary && (
+                            <Chip
+                              label="NSA"
+                              size="small"
+                              color="secondary"
+                              variant="outlined"
+                              sx={{ height: 16, fontSize: '0.6rem', '& .MuiChip-label': { px: 0.5 } }}
+                            />
+                          )}
                         </Box>
                       </TableCell>
                       <TableCell align="right" sx={{ py: 0.5, px: 0.5, fontSize: '0.75rem', fontFamily: 'monospace' }}>

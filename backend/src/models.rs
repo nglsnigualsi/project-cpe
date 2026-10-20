@@ -76,6 +76,8 @@ pub struct ServingCell {
 pub struct CellInfo {
     /// 是否为主服务小区
     pub is_serving: bool,
+    /// 是否为 NSA 辅载波（EN-DC 下与 LTE 锚点配对驻留的 NR 小区）
+    pub is_secondary: bool,
     /// 网络制式：nr, lte
     pub tech: String,
     /// 频段编号
@@ -588,6 +590,12 @@ pub enum RadioMode {
     /// 仅 5G NR
     #[serde(rename = "nr")]
     NrOnly,
+    /// 仅 NSA（EN-DC：LTE 锚点 + 5G 辅载波）
+    ///
+    /// ofono 的标准档位里没有这一项，部分固件会静默接受 "NSA only" 但不真正切换，
+    /// 所以设置后必须回读校验，不成功就降级到 NR 5G/LTE auto（同样支持 NSA）。
+    #[serde(rename = "nsa")]
+    Nsa,
 }
 
 impl RadioMode {
@@ -597,6 +605,7 @@ impl RadioMode {
             RadioMode::Auto => "NR 5G/LTE auto",
             RadioMode::LteOnly => "LTE only",
             RadioMode::NrOnly => "NR 5G only",
+            RadioMode::Nsa => "NSA only",
         }
     }
 
@@ -606,6 +615,7 @@ impl RadioMode {
             "NR 5G/LTE auto" | "LTE/GSM/WCDMA auto" | "NR 5G/LTE/GSM/WCDMA auto" => Some(RadioMode::Auto),
             "LTE only" => Some(RadioMode::LteOnly),
             "NR 5G only" => Some(RadioMode::NrOnly),
+            "NSA only" => Some(RadioMode::Nsa),
             _ => None,
         }
     }

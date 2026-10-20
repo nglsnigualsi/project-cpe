@@ -163,6 +163,34 @@ pub async fn get_cells(State(conn): State<Arc<Connection>>) -> impl IntoResponse
         let mut all_cells = vec![primary_cell];
         all_cells.extend(neighbor_cells);
 
+        // 5. NSA(EN-DC) 补充采集
+        // oFono 在 NSA 下只把 LTE 锚点报成服务小区，5G 那一路不在同一次查询里，
+        // 所以这里额外查 NR 主小区/邻区，并把 NR 主小区标记为辅载波。
+        // 这样界面才能同时看到“4G 锚点 + 5G 辅载波”，否则 NSA 下只显示 4G。
+        if tech == "lte" {
+            if let Ok(nr_primary) =
+                fetch_primary_cell(&conn, "AT+SPENGMD=0,14,1", "nr").await
+            {
+                let online = !nr_primary.arfcn.trim().is_empty()
+                    && nr_primary.arfcn.trim() != "0"
+                    && nr_primary.band.trim() != "0";
+
+                if online {
+                    let mut secondary = nr_primary;
+                    secondary.is_serving = false;
+                    secondary.is_secondary = true;
+                    // 放在锚点后面，保证展示顺序是 4G → 5G
+                    all_cells.insert(1, secondary);
+
+                    if let Ok(nr_neighbors) =
+                        fetch_neighbor_cells(&conn, "AT+SPENGMD=0,14,2", "nr").await
+                    {
+                        all_cells.extend(nr_neighbors);
+                    }
+                }
+            }
+        }
+
         Ok::<_, String>(CellsResponse {
             serving_cell,
             cells: all_cells,
@@ -1263,10 +1291,40 @@ pub async fn set_radio_mode_handler(
 ) -> impl IntoResponse {
     match set_radio_mode(&conn, payload.mode.clone()).await {
         Ok(_) => {
+            // 仅 NSA 需要回读校验：ofono 的标准 TechnologyPreference 里没有这个值，
+            // 部分固件会“接受”但根本不切换，表面上成功、实际 LTE 锚点永远不建立。
+            if payload.mode == RadioMode::Nsa {
+                let applied = get_radio_mode(&conn)
+                    .await
+                    .map(|r| r.technology_preference)
+                    .unwrap_or_default();
+                let dual_ok = applied.contains("LTE") && !applied.contains("only");
+
+                if !dual_ok {
+                    if let Err(e) = set_radio_mode(&conn, RadioMode::Auto).await {
+                        return (
+                            StatusCode::OK,
+                            Json(ApiResponse::<serde_json::Value>::error(format!(
+                                "设备不接受 NSA only，且回退到 NR 5G/LTE auto 失败: {}",
+                                e
+                            ))),
+                        );
+                    }
+                    return (
+                        StatusCode::OK,
+                        Json(ApiResponse::success_with_message(
+                            "设备不支持独立的 NSA only 档位，已切换为 NR 5G/LTE auto（同样支持 NSA 双连接）",
+                            json!({ "fallback": true, "applied": "auto" }),
+                        )),
+                    );
+                }
+            }
+
             let mode_str = match payload.mode {
                 RadioMode::Auto => "4G/5G Auto",
                 RadioMode::LteOnly => "4G LTE Only",
                 RadioMode::NrOnly => "5G NR Only",
+                RadioMode::Nsa => "NSA Only",
             };
             (
                 StatusCode::OK,
@@ -1276,13 +1334,28 @@ pub async fn set_radio_mode_handler(
                 )),
             )
         }
-        Err(e) => (
-            StatusCode::OK,
-            Json(ApiResponse::<serde_json::Value>::error(format!(
-                "Failed to set radio mode: {}",
-                e
-            ))),
-        ),
+        Err(e) => {
+            // 本机固件对 "NSA only" 直接回 InvalidArguments，这种情况同样降级，
+            // 让用户点“NSA”后直接拿到可用的双连接档位，而不是一个红叉。
+            if payload.mode == RadioMode::Nsa {
+                if set_radio_mode(&conn, RadioMode::Auto).await.is_ok() {
+                    return (
+                        StatusCode::OK,
+                        Json(ApiResponse::success_with_message(
+                            "设备不支持独立的 NSA only 档位，已切换为 NR 5G/LTE auto（同样支持 NSA 双连接）",
+                            json!({ "fallback": true, "applied": "auto" }),
+                        )),
+                    );
+                }
+            }
+            (
+                StatusCode::OK,
+                Json(ApiResponse::<serde_json::Value>::error(format!(
+                    "Failed to set radio mode: {}",
+                    e
+                ))),
+            )
+        },
     }
 }
 
