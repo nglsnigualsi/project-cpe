@@ -162,7 +162,7 @@ export default function NetworkPage() {
       
       if (radioModeRes.data) {
         const mode = radioModeRes.data.mode
-        if (mode === 'auto' || mode === 'lte' || mode === 'nr') {
+        if (mode === 'auto' || mode === 'lte' || mode === 'nr' || mode === 'nsa') {
           setCurrentRadioMode(mode as RadioMode)
         }
       }
@@ -415,7 +415,9 @@ export default function NetworkPage() {
     try {
       const response = await api.setRadioMode(mode)
       setSuccess(response.message || '射频模式已切换')
-      setCurrentRadioMode(mode)
+      // 后端对“仅 NSA”会做回读校验，固件不支持时会降级到 auto 并回传 fallback
+      const fellBack = Boolean((response.data as { fallback?: boolean } | undefined)?.fallback)
+      setCurrentRadioMode(fellBack ? 'auto' : mode)
       // 3秒后刷新频段配置（不影响用户正在编辑的其他内容）
       setTimeout(() => void loadBandLockConfig(), 3000)
     } catch (err) {
@@ -854,6 +856,9 @@ export default function NetworkPage() {
                 }}
               >
                 <Chip label={cellsInfo.serving_cell.tech?.toUpperCase() || '-'} size="small" color="primary" />
+                {cellsInfo.cells?.some((c) => c.is_secondary) && (
+                  <Chip label="NSA 双连接" size="small" color="secondary" variant="outlined" />
+                )}
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   CID: <strong>{cellsInfo.serving_cell.cell_id}</strong>
                 </Typography>
@@ -899,7 +904,9 @@ export default function NetworkPage() {
                             ? (theme: Theme) => theme.palette.mode === 'dark' ? 'rgba(237, 108, 2, 0.15)' : 'warning.light'
                             : cell.is_serving 
                               ? (theme: Theme) => theme.palette.mode === 'dark' ? 'rgba(102, 187, 106, 0.15)' : 'rgba(102, 187, 106, 0.08)'
-                              : 'inherit',
+                              : cell.is_secondary
+                                ? (theme: Theme) => theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.15)' : 'rgba(156, 39, 176, 0.08)'
+                                : 'inherit',
                         }}
                       >
                         <TableCell sx={{ py: 0.5, px: 1 }}>
@@ -908,12 +915,23 @@ export default function NetworkPage() {
                               <Lock sx={{ width: 10, height: 10, color: 'warning.main' }} />
                             ) : cell.is_serving ? (
                               <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'success.main', flexShrink: 0 }} />
+                            ) : cell.is_secondary ? (
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'secondary.main', flexShrink: 0 }} />
                             ) : null}
-                            <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: cell.is_serving ? 600 : 400 }}>
+                            <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: cell.is_serving || cell.is_secondary ? 600 : 400 }}>
                               {cell.band && cell.band !== '0' ? (
                                 cell.band || '-'
                               ) : '-'}
                             </Typography>
+                            {cell.is_secondary && (
+                              <Chip
+                                label="NSA"
+                                size="small"
+                                color="secondary"
+                                variant="outlined"
+                                sx={{ height: 16, fontSize: '0.6rem', '& .MuiChip-label': { px: 0.5 } }}
+                              />
+                            )}
                           </Box>
                         </TableCell>
                         <TableCell align="right" sx={{ py: 0.5, px: 0.5, fontSize: '0.75rem', fontFamily: 'monospace' }}>
@@ -1026,6 +1044,13 @@ export default function NetworkPage() {
                   size="small"
                   color={currentRadioMode === 'nr' ? 'primary' : 'default'}
                   onClick={() => void handleRadioModeChange('nr')}
+                  disabled={modeLoading}
+                />
+                <Chip
+                  label="NSA"
+                  size="small"
+                  color={currentRadioMode === 'nsa' ? 'primary' : 'default'}
+                  onClick={() => void handleRadioModeChange('nsa')}
                   disabled={modeLoading}
                 />
                 {modeLoading && <CircularProgress size={16} />}

@@ -1146,6 +1146,7 @@ pub async fn get_radio_mode(conn: &Connection) -> zbus::Result<RadioModeResponse
                 RadioMode::Auto => "auto",
                 RadioMode::LteOnly => "lte",
                 RadioMode::NrOnly => "nr",
+                RadioMode::Nsa => "nsa",
             })
             .unwrap_or("unknown")
             .to_string();

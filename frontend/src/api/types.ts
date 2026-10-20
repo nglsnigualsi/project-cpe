@@ -58,6 +58,7 @@ export interface ServingCell {
 // 小区信息
 export interface CellInfo {
   is_serving?: boolean // 是否为主服务小区
+  is_secondary?: boolean // 是否为 NSA 辅载波（EN-DC 下的 NR 小区）
   type?: string // 兼容旧版本
   tech?: string // 网络制式
   band?: string // 频段
@@ -305,17 +306,17 @@ export interface NetworkInterfacesResponse {
 }
 
 // 射频模式类型
-export type RadioMode = 'auto' | 'lte' | 'nr'
+export type RadioMode = 'auto' | 'lte' | 'nr' | 'nsa'
 
 // 射频模式响应
 export interface RadioModeResponse {
-  mode: string // 当前模式: auto | lte | nr | unknown
+  mode: string // 当前模式: auto | lte | nr | nsa | unknown
   technology_preference: string // ofono 原始 TechnologyPreference 值
 }
 
 // 射频模式请求
 export interface RadioModeRequest {
-  mode: RadioMode // auto: 4G/5G 自动, lte: 仅 4G, nr: 仅 5G
+  mode: RadioMode // auto: 4G/5G 自动, lte: 仅 4G, nr: 仅 5G, nsa: 仅 NSA（LTE 锚点 + 5G）
 }
 
 // 频段锁定状态

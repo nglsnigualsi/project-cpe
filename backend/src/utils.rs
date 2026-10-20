@@ -295,6 +295,7 @@ pub fn parse_neighbor_cells(tech: &str, parsed_data: &[Vec<String>]) -> Vec<Cell
                 
                 let cell = CellInfo {
                     is_serving: false, // 邻区标记
+                    is_secondary: false,
                     tech: tech.to_string(),
                     band,
                     arfcn: arfcn.to_string(),
@@ -332,6 +333,7 @@ pub fn parse_neighbor_cells(tech: &str, parsed_data: &[Vec<String>]) -> Vec<Cell
                 
                 let cell = CellInfo {
                     is_serving: false, // 邻区标记
+                    is_secondary: false,
                     tech: tech.to_string(),
                     band,
                     arfcn: row[0].clone(),
@@ -339,7 +341,8 @@ pub fn parse_neighbor_cells(tech: &str, parsed_data: &[Vec<String>]) -> Vec<Cell
                     // 返回原始值×100，不做除法，让前端处理单位转换
                     rsrp: row[2].clone(),
                     rsrq: row[3].clone(),
-                    sinr: "-".to_string(),  // LTE邻区不提供SINR
+                    // LTE 邻区的 SINR 在第 8 个字段（下标 7），第 7 个字段恒为 0
+                    sinr: row.get(7).cloned().unwrap_or_else(|| "-".to_string()),
                 };
                 
                 result.push(cell);

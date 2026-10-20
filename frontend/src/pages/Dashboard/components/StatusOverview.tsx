@@ -41,7 +41,13 @@ export function StatusOverview({
 }: StatusOverviewProps) {
   const theme = useTheme<Theme>()
 
+  // NSA（EN-DC）下 oFono 的 serving_cell.tech 只报 lte，
+  // 有没有 5G 要看 NR 辅载波，否则首页永远只显示 LTE
+  const secondaryCell = cellsInfo?.cells?.find((c) => c.is_secondary)
+  const servingBand = cellsInfo?.cells?.find((c) => c.is_serving)?.band
+
   const networkTech = (() => {
+    if (secondaryCell) return '5G NSA'
     if (cellsInfo?.serving_cell?.tech) {
       return cellsInfo.serving_cell.tech.toUpperCase()
     }
@@ -113,10 +119,20 @@ export function StatusOverview({
         <Chip
           icon={<WifiTethering />}
           label={networkTech}
-          color={networkTech === '5G' || networkTech === 'NR' ? 'success' : networkTech === 'N/A' ? 'default' : 'primary'}
+          color={networkTech === '5G' || networkTech === 'NR' || networkTech === '5G NSA' ? 'success' : networkTech === 'N/A' ? 'default' : 'primary'}
           size="small"
           sx={{ fontWeight: 'bold' }}
         />
+
+        {secondaryCell && (
+          <Chip
+            label={`${servingBand ?? 'LTE'} + ${secondaryCell.band}`}
+            color="secondary"
+            variant="outlined"
+            size="small"
+            sx={{ fontWeight: 'bold' }}
+          />
+        )}
 
         <Chip icon={<Router />} label={registrationLabel} color={registrationColor} variant="outlined" size="small" />
 
